@@ -1381,6 +1381,35 @@ var _ = Describe("K8sServicesTest", func() {
 						testExternalIPs()
 					})
 
+					Context("With host policy", func() {
+						var ccnpHostPolicy string
+
+						BeforeAll(func() {
+							DeployCiliumOptionsAndDNS(kubectl, ciliumFilename, map[string]string{
+								"global.hostFirewall": "true",
+							})
+
+							ccnpHostPolicy = helpers.ManifestGet(kubectl.BasePath(), "ccnp-host-policy-nodeport-tests.yaml")
+							_, err := kubectl.CiliumPolicyAction(helpers.DefaultNamespace, ccnpHostPolicy,
+								helpers.KubectlApply, helpers.HelperTimeout)
+							Expect(err).Should(BeNil(),
+								"Policy %s cannot be applied", ccnpHostPolicy)
+						})
+
+						AfterAll(func() {
+							_, err := kubectl.CiliumPolicyAction(helpers.DefaultNamespace, ccnpHostPolicy,
+								helpers.KubectlDelete, helpers.HelperTimeout)
+							Expect(err).Should(BeNil(),
+								"Policy %s cannot be deleted", ccnpHostPolicy)
+
+							DeployCiliumAndDNS(kubectl, ciliumFilename)
+						})
+
+						It("Tests NodePort", func() {
+							testNodePort(true, false, helpers.ExistNodeWithoutCilium(), 0)
+						})
+					})
+
 					Context("with L7 policy", func() {
 						AfterAll(func() { kubectl.Delete(demoPolicyL7) })
 
@@ -1438,6 +1467,40 @@ var _ = Describe("K8sServicesTest", func() {
 
 					SkipItIf(helpers.DoesNotExistNodeWithoutCilium, "Tests externalIPs", func() {
 						testExternalIPs()
+					})
+
+					Context("With host policy", func() {
+						var ccnpHostPolicy string
+
+						BeforeAll(func() {
+							DeployCiliumOptionsAndDNS(kubectl, ciliumFilename, map[string]string{
+								"global.tunnel":               "disabled",
+								"global.autoDirectNodeRoutes": "true",
+								"global.hostFirewall": "true",
+							})
+
+							ccnpHostPolicy = helpers.ManifestGet(kubectl.BasePath(), "ccnp-host-policy-nodeport-tests.yaml")
+							_, err := kubectl.CiliumPolicyAction(helpers.DefaultNamespace, ccnpHostPolicy,
+								helpers.KubectlApply, helpers.HelperTimeout)
+							Expect(err).Should(BeNil(),
+								"Policy %s cannot be applied", ccnpHostPolicy)
+						})
+
+						AfterAll(func() {
+							_, err := kubectl.CiliumPolicyAction(helpers.DefaultNamespace, ccnpHostPolicy,
+								helpers.KubectlDelete, helpers.HelperTimeout)
+							Expect(err).Should(BeNil(),
+								"Policy %s cannot be deleted", ccnpHostPolicy)
+
+							DeployCiliumOptionsAndDNS(kubectl, ciliumFilename, map[string]string{
+								"global.tunnel":               "disabled",
+								"global.autoDirectNodeRoutes": "true",
+							})
+						})
+
+						It("Tests NodePort", func() {
+							testNodePort(true, false, helpers.ExistNodeWithoutCilium(), 0)
+						})
 					})
 
 					Context("with L7 policy", func() {
