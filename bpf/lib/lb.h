@@ -48,6 +48,17 @@ struct bpf_elf_map __section_maps LB6_AFFINITY_MAP = {
 };
 #endif
 
+#ifdef ENABLE_LB_SRC_RANGE_CHECK
+struct bpf_elf_map __section_maps LB6_SRC_RANGE_MAP = {
+	.type		= BPF_MAP_TYPE_LPM_TRIE,
+	.size_key	= sizeof(struct lb6_src_range_key),
+	.size_value	= sizeof(__u8),
+	.pinning	= PIN_GLOBAL_NS,
+	.max_elem	= LB4_SRC_RANGE_MAP_SIZE,
+	.flags		= BPF_F_NO_PREALLOC,
+};
+#endif
+
 #endif /* ENABLE_IPV6 */
 
 #ifdef ENABLE_IPV4
@@ -85,6 +96,17 @@ struct bpf_elf_map __section_maps LB4_AFFINITY_MAP = {
 	.size_value	= sizeof(struct lb_affinity_val),
 	.pinning	= PIN_GLOBAL_NS,
 	.max_elem	= CILIUM_LB_MAP_MAX_ENTRIES,
+};
+#endif
+
+#ifdef ENABLE_LB_SRC_RANGE_CHECK
+struct bpf_elf_map __section_maps LB4_SRC_RANGE_MAP = {
+	.type		= BPF_MAP_TYPE_LPM_TRIE,
+	.size_key	= sizeof(struct lb4_src_range_key),
+	.size_value	= sizeof(__u8),
+	.pinning	= PIN_GLOBAL_NS,
+	.max_elem	= LB4_SRC_RANGE_MAP_SIZE,
+	.flags		= BPF_F_NO_PREALLOC,
 };
 #endif
 
@@ -186,6 +208,28 @@ bool lb6_svc_is_hostport(const struct lb6_service *svc __maybe_unused)
 #else
 	return false;
 #endif /* ENABLE_HOSTPORT */
+}
+
+static __always_inline
+bool lb4_svc_is_lb_with_src_range_check(const struct lb4_service *svc __maybe_unused)
+{
+#ifdef ENABLE_LB_SRC_RANGE_CHECK
+	return (svc->flags & (SVC_FLAG_LOADBALANCER | SVC_FLAG_CHECK_SRC)) ==
+		(SVC_FLAG_LOADBALANCER | SVC_FLAG_CHECK_SRC);
+#else
+	return false;
+#endif /* ENABLE_LB_SRC_RANGE_CHECK */
+}
+
+static __always_inline
+bool lb6_svc_is_lb_with_src_range_check(const struct lb6_service *svc __maybe_unused)
+{
+#ifdef ENABLE_LB_SRC_RANGE_CHECK
+	return (svc->flags & (SVC_FLAG_LOADBALANCER | SVC_FLAG_CHECK_SRC)) ==
+		(SVC_FLAG_LOADBALANCER | SVC_FLAG_CHECK_SRC);
+#else
+	return false;
+#endif /* ENABLE_LB_SRC_RANGE_CHECK */
 }
 
 static __always_inline
@@ -435,6 +479,29 @@ static __always_inline int lb6_extract_key(struct __ctx_buff *ctx __maybe_unused
 	csum_l4_offset_and_flags(tuple->nexthdr, csum_off);
 
 	return extract_l4_port(ctx, tuple->nexthdr, l4_off, &key->dport, NULL);
+}
+
+static __always_inline
+bool lb6_check_src_range(const struct lb6_service *svc __maybe_unused,
+			 const union v6addr *saddr __maybe_unused)
+{
+#ifdef ENABLE_LB_SRC_RANGE_CHECK
+	struct lb6_src_range_key key = {
+		.lpm_key = { SRC_RANGE_STATIC_PREFIX_V6, {} },
+		.rev_nat_id = svc->rev_nat_index,
+		.addr = *saddr,
+	};
+
+	if (!lb6_svc_is_lb_with_src_range_check(svc))
+		return true;
+
+	if (map_lookup_elem(&LB6_SRC_RANGE_MAP, &key))
+		return true;
+
+	return false;
+#else
+	return true;
+#endif /* ENABLE_LB_SRC_RANGE_CHECK */
 }
 
 static __always_inline
@@ -902,6 +969,29 @@ static __always_inline int lb4_extract_key(struct __ctx_buff *ctx __maybe_unused
 	csum_l4_offset_and_flags(ip4->protocol, csum_off);
 
 	return extract_l4_port(ctx, ip4->protocol, l4_off, &key->dport, ip4);
+}
+
+static __always_inline
+bool lb4_check_src_range(const struct lb4_service *svc __maybe_unused,
+			 __u32 saddr __maybe_unused)
+{
+#ifdef ENABLE_LB_SRC_RANGE_CHECK
+	struct lb4_src_range_key key = {
+		.lpm_key = { SRC_RANGE_STATIC_PREFIX_V4, {} },
+		.rev_nat_id = svc->rev_nat_index,
+		.addr = saddr,
+	};
+
+	if (!lb4_svc_is_lb_with_src_range_check(svc))
+		return true;
+
+	if (map_lookup_elem(&LB4_SRC_RANGE_MAP, &key))
+		return true;
+
+	return false;
+#else
+	return true;
+#endif /* ENABLE_LB_SRC_RANGE_CHECK */
 }
 
 static __always_inline
