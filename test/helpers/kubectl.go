@@ -4102,3 +4102,30 @@ func (kub *Kubectl) GetDNSProxyPort(ciliumPod string) int {
 	}
 	return port
 }
+
+// AddIPRoute adds a route to a given subnet address and a gateway on a given
+// node via the iproute2 utility suite. The function takes in a flag called
+// replace which will convert the action to replace the  route being added if
+// another route exists and matches. This allows for idempotency as the "replace"
+// action will not fail if another matching route exists, whereas "add" will fail.
+func (kub *Kubectl) AddIPRoute(nodeName, subnet, gw string, replace bool) {
+	action := "add"
+	if replace {
+		action = "replace"
+	}
+	cmd := fmt.Sprintf("ip route %s %s via %s", action, subnet, gw)
+
+	res, err := kub.ExecInHostNetNS(context.TODO(), nodeName, cmd)
+	gomega.Expect(res).To(CMDSuccess())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Cannot exec %s in node %s", cmd, nodeName)
+}
+
+// DelIPRoute deletes a route to a given IP address and a gateway on a given
+// node via the iproute2 utility suite.
+func (kub *Kubectl) DelIPRoute(nodeName, subnet, gw string) {
+	cmd := fmt.Sprintf("ip route del %s via %s", subnet, gw)
+
+	res, err := kub.ExecInHostNetNS(context.TODO(), nodeName, cmd)
+	gomega.Expect(res).To(CMDSuccess())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Cannot exec %s in node %s", cmd, nodeName)
+}
