@@ -1489,7 +1489,22 @@ var _ = Describe("K8sServicesTest", func() {
 								ExpectSuccess("Cannot add ip route")
 							defer func() { kubectl.DelIPRoute(outsideNodeName, lbIP, k8s1IP) }()
 							// Check connectivity from outside
-							testCurlFromOutside("http://"+lbIP, 10, false)
+							url := "http://" + lbIP
+							testCurlFromOutside(url, 10, false)
+
+							// Patch service to add a LB source range to disallow requests
+							// from the outsideNode
+							kubectl.Patch(helpers.DefaultNamespace, "service", "test-lb",
+								`{"spec": {"loadBalancerSourceRanges": ["1.1.1.0/24"]}}`)
+							time.Sleep(5 * time.Second)
+							testCurlFailFromOutside(url, 1)
+							// Patch again, but this time add outsideNode IP addr
+							kubectl.Patch(helpers.DefaultNamespace, "service", "test-lb",
+								fmt.Sprintf(
+									`{"spec": {"loadBalancerSourceRanges": ["1.1.1.0/24", "%s/32"]}}`,
+									outsideIP))
+							time.Sleep(5 * time.Second)
+							testCurlFromOutside(url, 10, false)
 						})
 					})
 				})
