@@ -756,9 +756,11 @@ func testPodHTTPToOutside(kubectl *helpers.Kubectl, outsideURL string, expectNod
 
 		if expectPodIP {
 			// Make pods reachable from the host which doesn't run Cilium
-			kubectl.AddIPRoute(helpers.GetNodeWithoutCilium(), podIP, hostIP, false)
+			kubectl.AddIPRoute(helpers.GetNodeWithoutCilium(), podIP, hostIP, false).
+				ExpectSuccess("Failed to add ip route")
 			defer func() {
-				kubectl.DelIPRoute(helpers.GetNodeWithoutCilium(), podIP, hostIP)
+				kubectl.DelIPRoute(helpers.GetNodeWithoutCilium(), podIP, hostIP).
+					ExpectSuccess("Failed to del ip route")
 			}()
 		}
 

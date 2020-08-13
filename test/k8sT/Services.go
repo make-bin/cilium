@@ -789,9 +789,11 @@ var _ = Describe("K8sServicesTest", func() {
 			tftpURL := getTFTPLink(svcExternalIP, data.Spec.Ports[1].Port)
 
 			// Add the route on the outside node to the external IP addr
-			kubectl.AddIPRoute(outsideNodeName, svcExternalIP, k8s1IP, false)
+			kubectl.AddIPRoute(outsideNodeName, svcExternalIP, k8s1IP, false).
+				ExpectSuccess("Cannot add ip route")
 			defer func() {
-				kubectl.DelIPRoute(outsideNodeName, svcExternalIP, k8s1IP)
+				kubectl.DelIPRoute(outsideNodeName, svcExternalIP, k8s1IP).
+					ExpectSuccess("Cannot del ip route")
 			}()
 
 			// Should work from outside via the external IP
@@ -1483,7 +1485,8 @@ var _ = Describe("K8sServicesTest", func() {
 								helpers.DefaultNamespace, "test-lb", 30*time.Second)
 							Expect(err).Should(BeNil(), "Cannot retrieve loadbalancer IP for test-lb")
 							// Add route to the LB IP addr via k8s1 node
-							kubectl.AddIPRoute(outsideNodeName, lbIP, k8s1IP, false)
+							kubectl.AddIPRoute(outsideNodeName, lbIP, k8s1IP, false).
+								ExpectSuccess("Cannot add ip route")
 							defer func() { kubectl.DelIPRoute(outsideNodeName, lbIP, k8s1IP) }()
 							// Check connectivity from outside
 							testCurlFromOutside("http://"+lbIP, 10, false)

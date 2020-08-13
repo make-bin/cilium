@@ -1165,7 +1165,8 @@ var _ = Describe("K8sPolicyTest", func() {
 				// K8s Services, for the sake of simplicity. Making the backend
 				// pod IP directly routable on the "outside" node is sufficient
 				// to validate the policy under test.
-				kubectl.AddIPRoute(outsideNodeName, backendPodIP, hostIPOfBackendPod, true)
+				res := kubectl.AddIPRoute(outsideNodeName, backendPodIP, hostIPOfBackendPod, true)
+				Expect(res).To(getMatcher(true))
 
 				policyVerdictAllowRegex = regexp.MustCompile(
 					fmt.Sprintf("Policy verdict log: .+action allow.+%s:[0-9]+ -> %s:80 tcp SYN",
