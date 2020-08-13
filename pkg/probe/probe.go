@@ -33,6 +33,11 @@ type probeValue struct {
 	Value uint32
 }
 
+var (
+	checkedFullLPM bool
+	haveFullLPM    bool
+)
+
 func (p *probeKey) String() string             { return fmt.Sprintf("key=%d", p.Key) }
 func (p *probeKey) GetKeyPtr() unsafe.Pointer  { return unsafe.Pointer(p) }
 func (p *probeKey) NewValue() bpf.MapValue     { return &probeValue{} }
@@ -45,7 +50,12 @@ func (p *probeValue) DeepCopyMapValue() bpf.MapValue { return &probeValue{p.Valu
 // HaveFullLPM tests whether kernel supports fully functioning BPF LPM map
 // with proper bpf.GetNextKey() traversal. Needs 4.16 or higher.
 func HaveFullLPM() bool {
+	if checkedFullLPM {
+		return haveFullLPM
+	}
+
 	var oldLim unix.Rlimit
+	checkedFullLPM = true
 
 	tmpLim := unix.Rlimit{
 		Cur: unix.RLIM_INFINITY,
@@ -78,6 +88,8 @@ func HaveFullLPM() bool {
 	if err != nil {
 		return false
 	}
+
+	haveFullLPM = true
 	return true
 }
 
