@@ -87,14 +87,29 @@ func getEndpointSelector(namespace string, labelSelector *slim_metav1.LabelSelec
 
 	// The user can explicitly specify the namespace in the
 	// FromEndpoints selector. If omitted, we limit the
-	// scope to the namespace the policy lives in.
+	// scope to the namespace the policy lives in for CiliumNetworkPolicy.
+	// For CiliumClusterwideNetworkPolicy we add match to select all endpoints
+	// that have a namespace label. This is to make sure we don't end up with
+	// truly empty EndpointSelector.
 	//
 	// Policies applying on initializing pods are a special case.
 	// Those pods don't have any labels, so they don't have a namespace label either.
 	// Don't add a namespace label to those endpoint selectors, or we wouldn't be
 	// able to match on those pods.
-	if !matchesInit && !es.HasKey(podPrefixLbl) && !es.HasKey(podAnyPrefixLbl) && namespace != "" {
-		es.AddMatch(podPrefixLbl, namespace)
+	if !matchesInit && !es.HasKey(podPrefixLbl) && !es.HasKey(podAnyPrefixLbl) {
+		if namespace != "" {
+			// Add match for CiliumNetworkPolicy that contains empty EndpointSelector.
+			es.AddMatch(podPrefixLbl, namespace)
+		} else {
+			// Add match for CiliumClusterwideNetworkPolicy that contains empty
+			// EndpointSelector
+			es.LabelSelector.MatchExpressions = append(
+				es.LabelSelector.MatchExpressions,
+				slim_metav1.LabelSelectorRequirement{
+					Key:      podPrefixLbl,
+					Operator: slim_metav1.LabelSelectorOpExists,
+				})
+		}
 	}
 
 	return es
